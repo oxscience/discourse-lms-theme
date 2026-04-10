@@ -1,0 +1,9 @@
+{
+  "name": "LMS Course Tracker",
+  "component": true,
+  "about_url": "https://github.com/oxscience/discourse-lms-theme",
+  "license_url": "https://github.com/oxscience/discourse-lms-theme/blob/main/LICENSE",
+  "authors": "Pat (oxscience)",
+  "assets": {},
+  "color_schemes": {}
+}
