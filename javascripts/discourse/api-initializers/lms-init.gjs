@@ -75,6 +75,9 @@ export default apiInitializer((api) => {
             setButtonState(btn, result.completed, result.needs_review);
             if (result.completed) {
               loadNextLesson(topic.category_id, topic.id, nextContainer);
+              if (result.certificate) {
+                showCertificateModal(result.certificate);
+              }
             } else {
               nextContainer.innerHTML = "";
             }
@@ -118,6 +121,166 @@ export default apiInitializer((api) => {
         }
       })
       .catch(function() {});
+  }
+
+  // --- Certificate helpers ---
+
+  function escapeXml(str) {
+    return String(str == null ? "" : str).replace(/[<>&"']/g, function(c) {
+      return ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&apos;" })[c];
+    });
+  }
+
+  function formatCertDate(iso) {
+    if (!iso) return "";
+    try {
+      var d = new Date(iso);
+      var locale = (document.documentElement.lang || "de").replace(/_/g, "-");
+      return d.toLocaleDateString(locale, { year: "numeric", month: "long", day: "numeric" });
+    } catch (e) {
+      return iso;
+    }
+  }
+
+  function renderCertificateSvg(cert) {
+    var name = escapeXml(cert.display_name);
+    var category = escapeXml(cert.category_name);
+    var date = escapeXml(formatCertDate(cert.issued_at));
+    var certId = escapeXml(cert.cert_id);
+    // A4 landscape at 4x: 1188 × 840
+    return [
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1188 840" preserveAspectRatio="xMidYMid meet" font-family="\'Inter\',\'Helvetica Neue\',Arial,sans-serif">',
+      '<rect width="1188" height="840" fill="#1a1f2e"/>',
+      '<rect x="40" y="40" width="1108" height="760" fill="none" stroke="#ff4477" stroke-width="2"/>',
+      '<rect x="52" y="52" width="1084" height="736" fill="none" stroke="#ff4477" stroke-width="1" stroke-opacity="0.35"/>',
+      '<text x="594" y="120" text-anchor="middle" font-size="20" letter-spacing="6" fill="#ff4477" font-weight="600">OUT OF THE BOX SCIENCE</text>',
+      '<text x="594" y="150" text-anchor="middle" font-size="13" letter-spacing="3" fill="#8a9bae">CAMPUS</text>',
+      '<text x="594" y="290" text-anchor="middle" font-size="72" font-weight="700" fill="#ffffff" letter-spacing="8">ZERTIFIKAT</text>',
+      '<text x="594" y="360" text-anchor="middle" font-size="20" fill="#8a9bae">wird verliehen an</text>',
+      '<text x="594" y="460" text-anchor="middle" font-size="56" font-weight="600" fill="#ff4477">', name, '</text>',
+      '<line x1="394" y1="500" x2="794" y2="500" stroke="#ff4477" stroke-width="1" stroke-opacity="0.4"/>',
+      '<text x="594" y="550" text-anchor="middle" font-size="20" fill="#8a9bae">für den erfolgreichen Abschluss von</text>',
+      '<text x="594" y="610" text-anchor="middle" font-size="32" font-weight="500" fill="#ffffff">', category, '</text>',
+      '<text x="100" y="740" font-size="13" fill="#8a9bae">Ausgestellt am</text>',
+      '<text x="100" y="765" font-size="18" font-weight="500" fill="#ffffff">', date, '</text>',
+      '<text x="1088" y="740" text-anchor="end" font-size="13" fill="#8a9bae">Zertifikat-ID</text>',
+      '<text x="1088" y="765" text-anchor="end" font-size="14" font-weight="500" fill="#ffffff" font-family="monospace">', certId, '</text>',
+      '<text x="594" y="795" text-anchor="middle" font-size="11" fill="#8a9bae" letter-spacing="2">campus.outoftheb-ox.de</text>',
+      '</svg>'
+    ].join("");
+  }
+
+  function downloadCertificate(cert) {
+    var svg = renderCertificateSvg(cert);
+    var title = escapeXml("Zertifikat – " + (cert.category_name || ""));
+    var html = [
+      '<!DOCTYPE html>',
+      '<html lang="de"><head>',
+      '<meta charset="utf-8" />',
+      '<title>', title, '</title>',
+      '<link rel="preconnect" href="https://fonts.googleapis.com">',
+      '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>',
+      '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">',
+      '<style>',
+      '@page { size: A4 landscape; margin: 0; }',
+      'html, body { margin: 0; padding: 0; background: #1a1f2e; }',
+      '.cert-wrap { display: flex; align-items: center; justify-content: center; min-height: 100vh; }',
+      'svg { width: 100%; max-width: 297mm; height: auto; display: block; }',
+      '@media print {',
+      '  html, body { background: #1a1f2e !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }',
+      '  .cert-wrap { min-height: auto; }',
+      '  svg { width: 297mm; height: 210mm; }',
+      '}',
+      '</style></head><body>',
+      '<div class="cert-wrap">', svg, '</div>',
+      '<script>window.addEventListener("load",function(){setTimeout(function(){window.print();},400);});</script>',
+      '</body></html>'
+    ].join("");
+
+    var w = window.open("", "_blank");
+    if (!w) {
+      alert("Bitte erlaube Popups, damit das Zertifikat geöffnet werden kann.");
+      return;
+    }
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+  }
+
+  function showCertificateModal(cert) {
+    if (document.querySelector(".lms-cert-modal-overlay")) return;
+
+    var overlay = document.createElement("div");
+    overlay.className = "lms-cert-modal-overlay";
+
+    var modal = document.createElement("div");
+    modal.className = "lms-cert-modal";
+    modal.innerHTML = [
+      '<div class="lms-cert-modal-icon">',
+      '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></svg>',
+      '</div>',
+      '<h2 class="lms-cert-modal-title">Glückwunsch!</h2>',
+      '<p class="lms-cert-modal-subtitle">Du hast <strong>', escapeXml(cert.category_name), '</strong> abgeschlossen.</p>',
+      '<label class="lms-cert-modal-label">Name auf dem Zertifikat',
+      '<input type="text" class="lms-cert-name-input" maxlength="120" />',
+      '</label>',
+      '<p class="lms-cert-modal-hint">Standard ist dein Anzeigename. Du kannst es jederzeit ändern.</p>',
+      '<div class="lms-cert-modal-actions">',
+      '<button class="btn btn-flat lms-cert-cancel">Später</button>',
+      '<button class="btn btn-primary lms-cert-download">Zertifikat herunterladen</button>',
+      '</div>'
+    ].join("");
+
+    // Set name via property to avoid HTML-injection through the value attribute
+    var nameInput = modal.querySelector(".lms-cert-name-input");
+    nameInput.value = cert.display_name || "";
+
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    function close() {
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+    }
+
+    modal.querySelector(".lms-cert-cancel").addEventListener("click", close);
+    overlay.addEventListener("click", function(e) {
+      if (e.target === overlay) close();
+    });
+    document.addEventListener("keydown", function escHandler(e) {
+      if (e.key === "Escape") {
+        close();
+        document.removeEventListener("keydown", escHandler);
+      }
+    });
+
+    var downloadBtn = modal.querySelector(".lms-cert-download");
+    downloadBtn.addEventListener("click", function() {
+      var newName = (nameInput.value || "").trim();
+      if (!newName) {
+        nameInput.focus();
+        return;
+      }
+      downloadBtn.disabled = true;
+      downloadBtn.textContent = "Speichern…";
+
+      ajax("/lms/certificate/" + cert.category_id, {
+        type: "PUT",
+        data: { display_name: newName }
+      })
+        .then(function(result) {
+          close();
+          downloadCertificate(result.certificate || Object.assign({}, cert, { display_name: newName }));
+        })
+        .catch(function() {
+          downloadBtn.disabled = false;
+          downloadBtn.textContent = "Zertifikat herunterladen";
+        });
+    });
+
+    setTimeout(function() {
+      nameInput.focus();
+      nameInput.select();
+    }, 50);
   }
 
   // --- 2. Category Page: Course header + topic badges ---

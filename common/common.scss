@@ -285,6 +285,115 @@
   }
 }
 
+// === Certificate modal ===
+.lms-cert-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: lms-cert-fade 0.18s ease;
+}
+
+@keyframes lms-cert-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.lms-cert-modal {
+  background: var(--secondary);
+  border: 1px solid var(--primary-low);
+  border-radius: 8px;
+  padding: 2em 2.2em 1.8em;
+  max-width: 480px;
+  width: 90%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+  text-align: center;
+  animation: lms-cert-pop 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.1);
+}
+
+@keyframes lms-cert-pop {
+  from { transform: scale(0.92); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.lms-cert-modal-icon {
+  display: flex;
+  justify-content: center;
+  color: var(--tertiary);
+  margin-bottom: 0.4em;
+}
+
+.lms-cert-modal-title {
+  margin: 0 0 0.3em;
+  font-size: 1.6em;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.lms-cert-modal-subtitle {
+  margin: 0 0 1.6em;
+  color: var(--primary-medium);
+  font-size: 1em;
+  line-height: 1.45;
+
+  strong {
+    color: var(--primary);
+    font-weight: 600;
+  }
+}
+
+.lms-cert-modal-label {
+  display: block;
+  text-align: left;
+  font-size: 0.82em;
+  font-weight: 600;
+  color: var(--primary-medium);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.lms-cert-name-input {
+  display: block;
+  width: 100%;
+  padding: 0.7em 0.9em;
+  margin-top: 0.5em;
+  font-size: 1.05em;
+  border: 1px solid var(--primary-low);
+  border-radius: 5px;
+  background: var(--primary-very-low);
+  color: var(--primary);
+  box-sizing: border-box;
+  font-weight: 500;
+
+  &:focus {
+    border-color: var(--tertiary);
+    outline: none;
+    box-shadow: 0 0 0 3px var(--tertiary-very-low, rgba(0, 119, 204, 0.15));
+  }
+}
+
+.lms-cert-modal-hint {
+  text-align: left;
+  margin: 0.55em 0 1.6em;
+  font-size: 0.78em;
+  color: var(--primary-medium);
+}
+
+.lms-cert-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6em;
+}
+
+.lms-cert-download {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+}
+
 // Position input (manual sort, admin only)
 .lms-position-input {
   width: 44px;
