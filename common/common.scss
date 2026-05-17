@@ -394,6 +394,34 @@
   gap: 0.4em;
 }
 
+// === Certificate action row on the course header (re-download) ===
+.lms-cert-action {
+  display: flex;
+  align-items: center;
+  gap: 0.7em;
+  margin-top: 0.6em;
+  padding-top: 0.6em;
+  border-top: 1px dashed var(--primary-low);
+  flex-wrap: wrap;
+  font-size: 0.85em;
+}
+
+.lms-cert-action-label {
+  color: var(--primary-medium);
+  font-weight: 500;
+}
+
+.lms-cert-action.is-outdated .lms-cert-action-label {
+  color: var(--danger, #c0392b);
+  font-weight: 600;
+}
+
+.lms-cert-redownload {
+  display: inline-flex;
+  align-items: center;
+  font-weight: 500;
+}
+
 // Position input (manual sort, admin only)
 .lms-position-input {
   width: 44px;

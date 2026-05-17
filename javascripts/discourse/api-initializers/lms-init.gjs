@@ -386,10 +386,52 @@ export default apiInitializer((api) => {
     }, 50);
   }
 
+  // Look up the user's certificate for this category (if any) and render
+  // a "Zertifikat herunterladen" action next to the progress bar. Idempotent:
+  // bails out if an action already exists for this header.
+  function maybeAddCertificateAction(categoryId, courseHeader) {
+    if (!courseHeader) return;
+    if (courseHeader.querySelector(".lms-cert-action")) return;
+
+    ajax("/lms/certificates.json")
+      .then(function(data) {
+        var certs = (data && data.certificates) || [];
+        var match = null;
+        for (var i = 0; i < certs.length; i++) {
+          if (certs[i].category_id === categoryId) { match = certs[i]; break; }
+        }
+        if (!match) return;
+
+        var wrap = document.createElement("div");
+        wrap.className = "lms-cert-action";
+        if (match.status === "outdated") wrap.classList.add("is-outdated");
+
+        var label = document.createElement("span");
+        label.className = "lms-cert-action-label";
+        if (match.status === "outdated") {
+          label.textContent = "Dein Zertifikat ist veraltet — eine Lektion wurde aktualisiert.";
+        } else {
+          label.textContent = "Dein Zertifikat ist verfügbar.";
+        }
+
+        var btn = document.createElement("button");
+        btn.className = "btn btn-default lms-cert-redownload";
+        btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="margin-right:0.4em;vertical-align:middle"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg><span>Zertifikat herunterladen</span>';
+        btn.addEventListener("click", function() {
+          downloadCertificate(match);
+        });
+
+        wrap.appendChild(label);
+        wrap.appendChild(btn);
+        courseHeader.appendChild(wrap);
+      })
+      .catch(function() { /* silent */ });
+  }
+
   // --- 2. Category Page: Course header + topic badges ---
   api.onPageChange(function(url) {
     // Clean up old LMS elements from previous category page
-    document.querySelectorAll(".lms-course-header, .lms-progress-bar").forEach(function(el) { el.remove(); });
+    document.querySelectorAll(".lms-course-header, .lms-progress-bar, .lms-cert-action").forEach(function(el) { el.remove(); });
     document.querySelectorAll(".lms-position, .lms-position-input, .lms-status-badge").forEach(function(el) { el.remove(); });
 
     if (!url.match(/^\/c\//)) return;
@@ -547,6 +589,9 @@ export default apiInitializer((api) => {
             var label = progressEl.querySelector(".lms-progress-label");
             if (fill) fill.style.width = pct + "%";
             if (label) label.textContent = data.completed + " von " + data.total + " Lektionen abgeschlossen";
+            // Surface a re-download button once the user has any cert for
+            // this category (either freshly active or outdated).
+            maybeAddCertificateAction(categoryId, courseHeader);
           })
           .catch(function() {
             // Leave the skeleton as-is; better than flashing an error.
