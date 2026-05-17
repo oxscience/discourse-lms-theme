@@ -142,30 +142,133 @@ export default apiInitializer((api) => {
     }
   }
 
+  // Build a pseudo-random dot/X grid inside a rectangle. Each cell's mark
+  // is decided by a deterministic hash of its (x, y) plus a seed, so the
+  // distribution looks chaotic but reproduces the same way every render.
+  function buildDotXGrid(opts) {
+    var elems = [];
+    for (var py = opts.y0; py <= opts.y1; py += opts.step) {
+      for (var px = opts.x0; px <= opts.x1; px += opts.step) {
+        var hash = ((px + 1) * 73 + (py + 1) * 137 + opts.seed * 19) % 100;
+        if (hash < opts.xRatio) {
+          var s = 1.6;
+          elems.push(
+            '<path d="M' + (px - s) + ' ' + (py - s) + 'l' + (s * 2) + ' ' + (s * 2) +
+            'M' + (px - s) + ' ' + (py + s) + 'l' + (s * 2) + ' ' + (-s * 2) +
+            '" stroke="' + opts.color + '" stroke-opacity="' + opts.xOpacity +
+            '" stroke-width="0.5" stroke-linecap="round" fill="none"/>'
+          );
+        } else {
+          elems.push(
+            '<circle cx="' + px + '" cy="' + py + '" r="1.05" fill="' + opts.color +
+            '" fill-opacity="' + opts.dotOpacity + '"/>'
+          );
+        }
+      }
+    }
+    return elems.join("");
+  }
+
   function renderCertificateSvg(cert) {
-    var name = escapeXml(cert.display_name);
-    var category = escapeXml(cert.category_name);
+    var name = escapeXml((cert.display_name || "").toUpperCase());
+    var category = escapeXml(cert.category_name || "");
     var date = escapeXml(formatCertDate(cert.issued_at));
-    var certId = escapeXml(cert.cert_id);
-    // A4 landscape at 4x: 1188 × 840
+    var certId = escapeXml(cert.cert_id || "");
+
+    // Dynamic letter-spacing / font-size for the name so long names don't
+    // overflow the printable area.
+    var rawName = cert.display_name || "";
+    var nameSpacing = rawName.length > 22 ? 4 : (rawName.length > 16 ? 7 : 10);
+    var nameSize = rawName.length > 28 ? 42 : (rawName.length > 20 ? 50 : 56);
+
+    // Unique SVG def IDs per cert, in case multiple certs render on one page
+    // later (e.g. a profile tab listing all certs).
+    var uid = "c-" + String(cert.cert_id || "x").replace(/[^a-z0-9]/gi, "").slice(0, 10);
+    var gOx = "oxGrad-" + uid;
+    var gGlow = "oxGlow-" + uid;
+    var gFadeTop = "oxFadeTop-" + uid;
+    var gFadeBot = "oxFadeBot-" + uid;
+    var mTop = "maskTop-" + uid;
+    var mBot = "maskBot-" + uid;
+
     return [
       '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1188 840" preserveAspectRatio="xMidYMid meet" font-family="\'Inter\',\'Helvetica Neue\',Arial,sans-serif">',
-      '<rect width="1188" height="840" fill="#1a1f2e"/>',
-      '<rect x="40" y="40" width="1108" height="760" fill="none" stroke="#ff4477" stroke-width="2"/>',
-      '<rect x="52" y="52" width="1084" height="736" fill="none" stroke="#ff4477" stroke-width="1" stroke-opacity="0.35"/>',
-      '<text x="594" y="120" text-anchor="middle" font-size="20" letter-spacing="6" fill="#ff4477" font-weight="600">OUT OF THE BOX SCIENCE</text>',
-      '<text x="594" y="150" text-anchor="middle" font-size="13" letter-spacing="3" fill="#8a9bae">CAMPUS</text>',
-      '<text x="594" y="290" text-anchor="middle" font-size="72" font-weight="700" fill="#ffffff" letter-spacing="8">ZERTIFIKAT</text>',
-      '<text x="594" y="360" text-anchor="middle" font-size="20" fill="#8a9bae">wird verliehen an</text>',
-      '<text x="594" y="460" text-anchor="middle" font-size="56" font-weight="600" fill="#ff4477">', name, '</text>',
-      '<line x1="394" y1="500" x2="794" y2="500" stroke="#ff4477" stroke-width="1" stroke-opacity="0.4"/>',
-      '<text x="594" y="550" text-anchor="middle" font-size="20" fill="#8a9bae">für den erfolgreichen Abschluss von</text>',
-      '<text x="594" y="610" text-anchor="middle" font-size="32" font-weight="500" fill="#ffffff">', category, '</text>',
-      '<text x="100" y="740" font-size="13" fill="#8a9bae">Ausgestellt am</text>',
-      '<text x="100" y="765" font-size="18" font-weight="500" fill="#ffffff">', date, '</text>',
-      '<text x="1088" y="740" text-anchor="end" font-size="13" fill="#8a9bae">Zertifikat-ID</text>',
-      '<text x="1088" y="765" text-anchor="end" font-size="14" font-weight="500" fill="#ffffff" font-family="monospace">', certId, '</text>',
-      '<text x="594" y="795" text-anchor="middle" font-size="11" fill="#8a9bae" letter-spacing="2">campus.outoftheb-ox.de</text>',
+
+        // === Defs ===
+        '<defs>',
+          '<linearGradient id="', gOx, '" x1="0%" y1="0%" x2="100%" y2="100%">',
+            '<stop offset="0%" stop-color="#6d8cff"/>',
+            '<stop offset="50%" stop-color="#a78bfa"/>',
+            '<stop offset="100%" stop-color="#6d8cff"/>',
+          '</linearGradient>',
+          '<radialGradient id="', gGlow, '" cx="50%" cy="50%" r="65%">',
+            '<stop offset="0%" stop-color="#6d8cff" stop-opacity="0.22"/>',
+            '<stop offset="45%" stop-color="#a78bfa" stop-opacity="0.08"/>',
+            '<stop offset="75%" stop-color="#a78bfa" stop-opacity="0"/>',
+          '</radialGradient>',
+          '<radialGradient id="', gFadeTop, '" cx="594" cy="215" r="320" gradientUnits="userSpaceOnUse">',
+            '<stop offset="0%" stop-color="black" stop-opacity="1"/>',
+            '<stop offset="55%" stop-color="black" stop-opacity="0.5"/>',
+            '<stop offset="100%" stop-color="black" stop-opacity="0"/>',
+          '</radialGradient>',
+          '<radialGradient id="', gFadeBot, '" cx="594" cy="600" r="360" gradientUnits="userSpaceOnUse">',
+            '<stop offset="0%" stop-color="black" stop-opacity="1"/>',
+            '<stop offset="55%" stop-color="black" stop-opacity="0.5"/>',
+            '<stop offset="100%" stop-color="black" stop-opacity="0"/>',
+          '</radialGradient>',
+          '<mask id="', mTop, '" maskUnits="userSpaceOnUse">',
+            '<rect x="0" y="0" width="1188" height="430" fill="white"/>',
+            '<rect x="0" y="0" width="1188" height="430" fill="url(#', gFadeTop, ')"/>',
+          '</mask>',
+          '<mask id="', mBot, '" maskUnits="userSpaceOnUse">',
+            '<rect x="0" y="432" width="1188" height="408" fill="white"/>',
+            '<rect x="0" y="432" width="1188" height="408" fill="url(#', gFadeBot, ')"/>',
+          '</mask>',
+        '</defs>',
+
+        // === Top half (black + chaotic white dot/X grid + glow) ===
+        '<rect width="1188" height="430" fill="#0f1216"/>',
+        '<g mask="url(#', mTop, ')">',
+          buildDotXGrid({ x0: 14, x1: 1174, y0: 14, y1: 416, step: 28, color: "#ffffff", dotOpacity: 0.14, xOpacity: 0.34, xRatio: 10, seed: 1 }),
+        '</g>',
+        '<rect width="1188" height="430" fill="url(#', gGlow, ')"/>',
+
+        // Wordmark "OX CAMPUS" — gradient fill
+        '<text x="594" y="200" text-anchor="middle" font-size="68" font-weight="800" fill="url(#', gOx, ')" letter-spacing="14">OX CAMPUS</text>',
+        // Thin gradient underline divider
+        '<line x1="494" y1="240" x2="694" y2="240" stroke="url(#', gOx, ')" stroke-opacity="0.5" stroke-width="1"/>',
+        // Subtitle with wide tracking
+        '<text x="594" y="295" text-anchor="middle" font-size="16" letter-spacing="8" fill="#ffffff" font-weight="400">TEILNAHMEBEST&#196;TIGUNG VON</text>',
+
+        // === Gradient divider strip between halves ===
+        '<rect x="0" y="428" width="1188" height="4" fill="url(#', gOx, ')"/>',
+
+        // === Bottom half (white + chaotic blue dot/X grid) ===
+        '<rect x="0" y="432" width="1188" height="408" fill="#ffffff"/>',
+        '<g mask="url(#', mBot, ')">',
+          buildDotXGrid({ x0: 14, x1: 1174, y0: 446, y1: 824, step: 28, color: "#6d8cff", dotOpacity: 0.22, xOpacity: 0.50, xRatio: 10, seed: 7 }),
+        '</g>',
+
+        // Name — solid black for dignity / contrast
+        '<text x="594" y="555" text-anchor="middle" font-size="', nameSize, '" font-weight="700" fill="#1a1a1a" letter-spacing="', nameSpacing, '">', name, '</text>',
+        // Subtle gradient separator under the name
+        '<line x1="494" y1="595" x2="694" y2="595" stroke="url(#', gOx, ')" stroke-opacity="0.45" stroke-width="1.2"/>',
+        // Body text — multi-line
+        '<text x="594" y="650" text-anchor="middle" font-size="18" fill="#3a3a3a">',
+          'Der Online-Kurs ',
+          '<tspan font-weight="700" fill="#1a1a1a">', category, '</tspan>',
+        '</text>',
+        '<text x="594" y="678" text-anchor="middle" font-size="18" fill="#3a3a3a">',
+          'wurde am ',
+          '<tspan font-weight="700" fill="#1a1a1a">', date, '</tspan>',
+          ' auf dem OX Campus erfolgreich abgeschlossen.',
+        '</text>',
+
+        // Cert-ID, bottom-left
+        '<text x="80" y="810" font-size="9" fill="#9a9a9a" font-family="monospace" letter-spacing="0.5">ID &#183; ', certId, '</text>',
+        // Footer impressum, bottom-right
+        '<text x="1108" y="810" text-anchor="end" font-size="9" fill="#9a9a9a" letter-spacing="0.5">Out Of The Box Science GmbH &#183; Bunsenstra&#223;e 43 &#183; 50997 K&#246;ln &#183; www.outoftheb-ox.de</text>',
+
       '</svg>'
     ].join("");
   }
@@ -183,13 +286,13 @@ export default apiInitializer((api) => {
       '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">',
       '<style>',
       '@page { size: A4 landscape; margin: 0; }',
-      'html, body { margin: 0; padding: 0; background: #1a1f2e; }',
+      'html, body { margin: 0; padding: 0; background: #0f1216; }',
       '.cert-wrap { display: flex; align-items: center; justify-content: center; min-height: 100vh; }',
-      'svg { width: 100%; max-width: 297mm; height: auto; display: block; }',
+      'svg { width: 100%; max-width: 297mm; height: auto; display: block; box-shadow: 0 12px 40px rgba(0,0,0,0.5); }',
       '@media print {',
-      '  html, body { background: #1a1f2e !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }',
+      '  html, body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }',
       '  .cert-wrap { min-height: auto; }',
-      '  svg { width: 297mm; height: 210mm; }',
+      '  svg { width: 297mm; height: 210mm; box-shadow: none; }',
       '}',
       '</style></head><body>',
       '<div class="cert-wrap">', svg, '</div>',
