@@ -429,8 +429,11 @@ export default apiInitializer((api) => {
   }
 
   // --- 2. Category Page: Course header + topic badges ---
+  var topicListObserver = null;
+
   api.onPageChange(function(url) {
     // Clean up old LMS elements from previous category page
+    if (topicListObserver) { topicListObserver.disconnect(); topicListObserver = null; }
     document.querySelectorAll(".lms-course-header, .lms-progress-bar, .lms-cert-action").forEach(function(el) { el.remove(); });
     document.querySelectorAll(".lms-position, .lms-position-input, .lms-status-badge").forEach(function(el) { el.remove(); });
 
@@ -626,16 +629,18 @@ export default apiInitializer((api) => {
             // Collect topic rows (order is already correct — server sorts them
             // for LMS categories via TopicQuery#apply_ordering). We only need
             // the row lookup here to attach numbers/badges below.
-            var rows = document.querySelectorAll("tr.topic-list-item, .topic-list-item");
-            var rowById = {};
-            rows.forEach(function(row) {
-              var link = row.querySelector("a.title.raw-link, a.raw-topic-link");
-              if (!link) return;
-              var href = link.getAttribute("href") || "";
-              var match = href.match(/\/t\/[^/]+\/(\d+)/);
-              if (!match) return;
-              rowById[parseInt(match[1], 10)] = row;
-            });
+            function collectRows() {
+              var rowById = {};
+              document.querySelectorAll("tr.topic-list-item, .topic-list-item").forEach(function(row) {
+                var link = row.querySelector("a.title.raw-link, a.raw-topic-link");
+                if (!link) return;
+                var href = link.getAttribute("href") || "";
+                var match = href.match(/\/t\/[^/]+\/(\d+)/);
+                if (!match) return;
+                rowById[parseInt(match[1], 10)] = row;
+              });
+              return rowById;
+            }
 
             // Helper: save positions to server and reload
             function savePositions(orderedTopicIds) {
@@ -664,6 +669,8 @@ export default apiInitializer((api) => {
             }
 
             // Now add numbering, badges, and position inputs to the reordered rows
+            function decorateRows() {
+            var rowById = collectRows();
             Object.keys(rowById).forEach(function(topicIdStr) {
               var topicId = parseInt(topicIdStr, 10);
               var row = rowById[topicId];
@@ -729,6 +736,20 @@ export default apiInitializer((api) => {
                 }
               }
             });
+            }
+
+            decorateRows();
+
+            // Discourse loads topics 30 at a time (infinite scroll). Without
+            // this, everything past the first page stays unnumbered. Watching
+            // only direct children of the list container keeps the observer
+            // from re-firing on our own in-row inserts.
+            var firstRow = document.querySelector("tr.topic-list-item, .topic-list-item");
+            var listContainer = firstRow && firstRow.parentNode;
+            if (listContainer) {
+              topicListObserver = new MutationObserver(decorateRows);
+              topicListObserver.observe(listContainer, { childList: true });
+            }
           })
           .catch(function() {});
       }
