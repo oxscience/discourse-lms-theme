@@ -615,15 +615,25 @@ export default apiInitializer((api) => {
               byId[lessons[i].id] = lessons[i];
             }
 
-            // Build auto-number map: sequential display numbers, skip "Über" topics
-            var displayNum = {};
-            var counter = 1;
-            for (var i = 0; i < lessons.length; i++) {
-              var isAboutTopic = /^[Üü]ber die Kategorie/i.test(lessons[i].title);
-              if (!isAboutTopic) {
-                displayNum[lessons[i].id] = counter;
-                counter++;
+            // Pinned topics are signposts, not lessons — they sit at the top of
+            // the list regardless of course order, so a number on them would
+            // contradict the sequence. Tracked across passes because a topic
+            // the user unpinned for themselves loses the marker.
+            var pinnedIds = {};
+
+            // Build auto-number map: sequential display numbers, skip "Über"
+            // and pinned topics.
+            function buildDisplayNums() {
+              var displayNum = {};
+              var counter = 1;
+              for (var i = 0; i < lessons.length; i++) {
+                var isAboutTopic = /^[Üü]ber die Kategorie/i.test(lessons[i].title);
+                if (!isAboutTopic && !pinnedIds[lessons[i].id]) {
+                  displayNum[lessons[i].id] = counter;
+                  counter++;
+                }
               }
+              return displayNum;
             }
 
             // Collect topic rows (order is already correct — server sorts them
@@ -671,6 +681,14 @@ export default apiInitializer((api) => {
             // Now add numbering, badges, and position inputs to the reordered rows
             function decorateRows() {
             var rowById = collectRows();
+
+            Object.keys(rowById).forEach(function(topicIdStr) {
+              if (rowById[topicIdStr].querySelector(".topic-status.--pinned, .topic-status.--unpinned")) {
+                pinnedIds[parseInt(topicIdStr, 10)] = true;
+              }
+            });
+            var displayNum = buildDisplayNums();
+
             Object.keys(rowById).forEach(function(topicIdStr) {
               var topicId = parseInt(topicIdStr, 10);
               var row = rowById[topicId];
@@ -682,9 +700,15 @@ export default apiInitializer((api) => {
 
               // Auto-numbering: show display number unless title already starts with a number
               var num = displayNum[topicId];
-              if (num && !row.querySelector(".lms-position") && !row.querySelector(".lms-position-input")) {
-                var titleStartsWithNumber = /^\d/.test(lesson.title);
-                if (!titleStartsWithNumber) {
+              var existingPos = row.querySelector(".lms-position");
+              if (!num || /^\d/.test(lesson.title)) {
+                // Not numbered (about topic, pinned, or self-numbered title) —
+                // drop a number left over from an earlier pass.
+                if (existingPos) existingPos.remove();
+              } else if (!row.querySelector(".lms-position-input")) {
+                if (existingPos) {
+                  existingPos.textContent = num + ". ";
+                } else {
                   // Admin + manual sort → editable number input
                   if (isAdmin && sortOrder === "manual") {
                     var input = document.createElement("input");
